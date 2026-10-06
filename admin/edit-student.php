@@ -70,6 +70,11 @@
                             <input class="form-control" name="grade" value="<?php echo $d['grade']?>">
                         </div>
                         <button type="submit" class="btn btn-primary">Submit</button>
+                        <a href="delete-student.php?id=<?php echo urlencode($d['id']); ?>"
+                            class="btn btn-danger"
+                            onclick="return confirm('Apakah Anda yakin ingin menghapus siswa ini?');">
+                            Hapus
+                        </a>
                     </form>
                 </div>
                 <!-- /.container-fluid -->

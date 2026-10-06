@@ -9,7 +9,6 @@ include("../connect.php");
     $date = date("Y-m-d");
     $query="DELETE FROM student WHERE id = '$rfidid_parents'";
     mysqli_query($connect, $query);
-    // mengalihkan ke halaman index.php
-    header('Location: ' . $_SERVER['HTTP_REFERER']);
+    header('Location: student-list.php');
 
 ?>

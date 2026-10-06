@@ -36,6 +36,8 @@
             <div class="bg-white py-2 collapse-inner rounded">
                 <h6 class="collapse-header">Student:</h6>
                 <a class="collapse-item" href="student-list.php">Student List</a>
+                <a class="collapse-item" href="pickup-requests.php">Pickup Requests</a>
+                <a class="collapse-item" href="homeroom-list.php">Homeroom List</a>
                 <a class="collapse-item" href="upload-student.php">Upload Student</a>
                 <a class="collapse-item" href="upload-kartu.php">Upload Kartu</a>
                 <a class="collapse-item" href="register.html">Input Student</a>
