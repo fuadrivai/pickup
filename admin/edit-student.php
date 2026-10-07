@@ -2,9 +2,93 @@
 <html lang="en">
 <?php
     include("../connect.php");
-    $id = $_GET['id'];
-    $sql = mysqli_query($connect, "SELECT * FROM student where id = '$id' ORDER BY grade DESC");
-    $d = mysqli_fetch_array($sql)
+    $id = isset($_GET['id']) ? trim((string) $_GET['id']) : '';
+    if ($id === '' || !ctype_digit($id)) {
+        header('Location: student-list.php');
+        exit;
+    }
+
+    $studentStatement = mysqli_prepare(
+        $connect,
+        "SELECT id, rfidid, student_name, grade FROM student WHERE id = ? LIMIT 1"
+    );
+    if (!$studentStatement) {
+        error_log('Gagal menyiapkan data siswa untuk diedit: ' . mysqli_error($connect));
+        http_response_code(500);
+        exit('Unable to load student.');
+    }
+
+    if (
+        !mysqli_stmt_bind_param($studentStatement, 's', $id) ||
+        !mysqli_stmt_execute($studentStatement) ||
+        !mysqli_stmt_bind_result($studentStatement, $studentId, $rfidid, $studentName, $grade)
+    ) {
+        error_log('Gagal mengambil data siswa untuk diedit: ' . mysqli_stmt_error($studentStatement));
+        mysqli_stmt_close($studentStatement);
+        http_response_code(500);
+        exit('Unable to load student.');
+    }
+
+    if (mysqli_stmt_fetch($studentStatement) !== true) {
+        mysqli_stmt_close($studentStatement);
+        header('Location: student-list.php');
+        exit;
+    }
+    mysqli_stmt_close($studentStatement);
+    $d = [
+        'id' => $studentId,
+        'rfidid' => $rfidid,
+        'student_name' => $studentName,
+        'grade' => $grade
+    ];
+
+    $cardsStatement = mysqli_prepare(
+        $connect,
+        "SELECT rfidid_parents, registered_date FROM parents_card WHERE rfidid = ? ORDER BY registered_date DESC"
+    );
+    if (!$cardsStatement) {
+        error_log('Gagal menyiapkan daftar kartu orang tua: ' . mysqli_error($connect));
+        http_response_code(500);
+        exit('Unable to load parents cards.');
+    }
+
+    if (
+        !mysqli_stmt_bind_param($cardsStatement, 's', $rfidid) ||
+        !mysqli_stmt_execute($cardsStatement) ||
+        !mysqli_stmt_bind_result($cardsStatement, $parentsCardId, $registeredDate)
+    ) {
+        error_log('Gagal mengambil daftar kartu orang tua: ' . mysqli_stmt_error($cardsStatement));
+        mysqli_stmt_close($cardsStatement);
+        http_response_code(500);
+        exit('Unable to load parents cards.');
+    }
+
+    $parentsCards = [];
+    while (($fetchResult = mysqli_stmt_fetch($cardsStatement)) === true) {
+        $parentsCards[] = [
+            'rfidid_parents' => $parentsCardId,
+            'registered_date' => $registeredDate
+        ];
+    }
+    if ($fetchResult === false) {
+        error_log('Gagal membaca daftar kartu orang tua: ' . mysqli_stmt_error($cardsStatement));
+        mysqli_stmt_close($cardsStatement);
+        http_response_code(500);
+        exit('Unable to load parents cards.');
+    }
+    mysqli_stmt_close($cardsStatement);
+
+    $statusMessages = [
+        'created' => ['success', 'Student added successfully.'],
+        'card_error' => ['warning', 'Student was added, but one or more parents cards could not be saved. Check the cards below and add any missing cards.'],
+        'added' => ['success', 'Parents card added successfully.'],
+        'deleted' => ['success', 'Parents card deleted successfully.'],
+        'invalid' => ['warning', 'Enter a parents card ID.'],
+        'not_found' => ['warning', 'The parents card was not found for this student.'],
+        'student_not_found' => ['warning', 'The student was not found.'],
+        'error' => ['danger', 'Unable to update the parents card. Please check the server error log.']
+    ];
+    $status = isset($_GET['status']) ? (string) $_GET['status'] : '';
 ?>
 <head>
 
@@ -52,22 +136,27 @@
                 <div class="container-fluid">
 
                     <!-- Page Heading -->
-                    <h1 class="h3 mb-4 text-gray-800">Edit Student - <?php echo $d['student_name']?> </h1>
+                    <h1 class="h3 mb-4 text-gray-800">Edit Student - <?php echo htmlspecialchars($d['student_name'], ENT_QUOTES, 'UTF-8'); ?> </h1>
+                    <?php if (isset($statusMessages[$status])) { ?>
+                        <div class="alert alert-<?php echo $statusMessages[$status][0]; ?>" role="alert">
+                            <?php echo htmlspecialchars($statusMessages[$status][1], ENT_QUOTES, 'UTF-8'); ?>
+                        </div>
+                    <?php } ?>
                     <form method="post" action="update.php?type=edit-student">
-                        <input class="form-control" style="display:none" name="id" value="<?php echo $d['id']?>">
+                        <input class="form-control" style="display:none" name="id" value="<?php echo htmlspecialchars((string) $d['id'], ENT_QUOTES, 'UTF-8'); ?>">
                         <div class="mb-3">
                             <label for="exampleInputEmail1" class="form-label">Student ID</label>
-                            <input class="form-control" name="rfidid" value="<?php echo $d['rfidid']?>">
+                            <input class="form-control" name="rfidid" value="<?php echo htmlspecialchars($d['rfidid'], ENT_QUOTES, 'UTF-8'); ?>">
                             
                         </div>
                         <div class="mb-3">
                             <label for="exampleInputEmail1" class="form-label">Student Name</label>
-                            <input class="form-control" name="student_name" value="<?php echo $d['student_name']?>">
+                            <input class="form-control" name="student_name" value="<?php echo htmlspecialchars($d['student_name'], ENT_QUOTES, 'UTF-8'); ?>">
                             
                         </div>
                         <div class="mb-3">
                             <label for="exampleInputPassword1" class="form-label">Grade</label>
-                            <input class="form-control" name="grade" value="<?php echo $d['grade']?>">
+                            <input class="form-control" name="grade" value="<?php echo htmlspecialchars($d['grade'], ENT_QUOTES, 'UTF-8'); ?>">
                         </div>
                         <button type="submit" class="btn btn-primary">Submit</button>
                         <a href="delete-student.php?id=<?php echo urlencode($d['id']); ?>"
@@ -76,6 +165,54 @@
                             Hapus
                         </a>
                     </form>
+                    <div class="card shadow mb-4 mt-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Parents Cards</h6>
+                        </div>
+                        <div class="card-body">
+                            <form method="post" action="update.php?type=parents_card" class="form-inline mb-4">
+                                <input type="hidden" name="student_id" value="<?php echo htmlspecialchars((string) $d['id'], ENT_QUOTES, 'UTF-8'); ?>">
+                                <div class="form-group mr-2 mb-2">
+                                    <label class="sr-only" for="parentsCardId">Parents Card ID</label>
+                                    <input class="form-control" id="parentsCardId" name="rfidid_parents"
+                                        placeholder="Parents Card ID" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary mb-2">Add Card</button>
+                            </form>
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Parents Card ID</th>
+                                            <th>Register Date</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php if (count($parentsCards) === 0) { ?>
+                                            <tr>
+                                                <td colspan="3" class="text-center">No parents cards registered.</td>
+                                            </tr>
+                                        <?php } else { ?>
+                                            <?php foreach ($parentsCards as $card) { ?>
+                                                <tr>
+                                                    <td><?php echo htmlspecialchars($card['rfidid_parents'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                                    <td><?php echo htmlspecialchars($card['registered_date'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                                    <td>
+                                                        <a href="delete.php?type=parents_card&amp;student_id=<?php echo rawurlencode((string) $d['id']); ?>&amp;rfidid_parents=<?php echo rawurlencode($card['rfidid_parents']); ?>"
+                                                            class="btn btn-danger btn-sm"
+                                                            onclick="return confirm('Delete this parents card?');">
+                                                            Delete
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            <?php } ?>
+                                        <?php } ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <!-- /.container-fluid -->
 

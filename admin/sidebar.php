@@ -40,7 +40,7 @@
                 <a class="collapse-item" href="homeroom-list.php">Homeroom List</a>
                 <a class="collapse-item" href="upload-student.php">Upload Student</a>
                 <a class="collapse-item" href="upload-kartu.php">Upload Kartu</a>
-                <a class="collapse-item" href="register.html">Input Student</a>
+                <a class="collapse-item" href="add-student.php">Tambah Student</a>
                 <div class="collapse-divider"></div>
                 <h6 class="collapse-header">Parents:</h6>
                 <a class="collapse-item" href="404.html">404 Page</a>

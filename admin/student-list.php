@@ -166,7 +166,12 @@
                 <div class="container-fluid">
 
                     <!-- Page Heading -->
-                    <h1 class="h3 mb-2 text-gray-800">List Siswa</h1>
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h1 class="h3 mb-0 text-gray-800">List Siswa</h1>
+                        <a href="add-student.php" class="btn btn-primary">
+                            <i class="fas fa-user-plus mr-1"></i> Tambah Student
+                        </a>
+                    </div>
                     <!-- DataTales Example -->
                     <div class="card shadow mb-4">
                         <div class="card-header py-3">
@@ -227,7 +232,7 @@
                                             <td><?php echo$d['student_name']; ?></td>
                                             <td><?php echo$d['grade']; ?></td>
                                             <td><a
-                                                    href="parents_card.php?rfidid=<?php echo $d['rfidid'] ?>"><?php echo$count; ?></a>
+                                                    href="edit-student.php?id=<?php echo urlencode($d['id']); ?>"><?php echo$count; ?></a>
                                             </td>
                                             <td>
                                                 <button type="button" class="btn btn-primary btn-sm pickup-button"
@@ -479,13 +484,12 @@
 
                     var rows = response.students.map(function (student) {
                         var id = encodeURIComponent(student.id);
-                        var rfidId = encodeURIComponent(student.rfidid);
 
                         return [
                             escapeHtml(student.rfidid),
                             escapeHtml(student.student_name),
                             escapeHtml(student.grade),
-                            '<a href="parents_card.php?rfidid=' + rfidId + '">' +
+                            '<a href="edit-student.php?id=' + id + '">' +
                                 escapeHtml(student.parents_card_count) + '</a>',
                             '<button type="button" class="btn btn-primary btn-sm pickup-button"' +
                                 ' data-student-id="' + escapeHtml(student.id) + '"' +

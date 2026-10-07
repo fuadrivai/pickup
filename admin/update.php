@@ -38,11 +38,48 @@ header("location:/filewebhook/pickup/admin/student-list.php");
     // Check if path uses filewebhook based on previous code logic
     header("location: video-embed.php");
 }else if($type =='parents_card'){
+    $studentId = isset($_POST['student_id']) ? trim((string) $_POST['student_id']) : '';
     $rfidid = isset($_POST['rfidid']) ? trim((string) $_POST['rfidid']) : '';
     $rfidid_parents = isset($_POST['rfidid_parents']) ? trim((string) $_POST['rfidid_parents']) : '';
-    if ($rfidid === '' || $rfidid_parents === '') {
-        header('Location: parents_card.php?rfidid=' . rawurlencode($rfidid) . '&status=invalid');
+    $returnUrl = $studentId !== ''
+        ? 'edit-student.php?id=' . rawurlencode($studentId)
+        : 'parents_card.php?rfidid=' . rawurlencode($rfidid);
+
+    if ($rfidid_parents === '' || ($studentId === '' && $rfidid === '')) {
+        header('Location: ' . $returnUrl . '&status=invalid');
         exit;
+    }
+
+    if ($studentId !== '') {
+        if (!ctype_digit($studentId)) {
+            header('Location: student-list.php');
+            exit;
+        }
+
+        $studentStatement = mysqli_prepare($connect, "SELECT rfidid FROM student WHERE id = ? LIMIT 1");
+        if (!$studentStatement) {
+            error_log('Gagal menyiapkan pencarian siswa untuk penambahan kartu: ' . mysqli_error($connect));
+            header('Location: ' . $returnUrl . '&status=error');
+            exit;
+        }
+
+        if (
+            !mysqli_stmt_bind_param($studentStatement, 's', $studentId) ||
+            !mysqli_stmt_execute($studentStatement) ||
+            !mysqli_stmt_bind_result($studentStatement, $rfidid)
+        ) {
+            error_log('Gagal mencari siswa untuk penambahan kartu: ' . mysqli_stmt_error($studentStatement));
+            mysqli_stmt_close($studentStatement);
+            header('Location: ' . $returnUrl . '&status=error');
+            exit;
+        }
+
+        if (mysqli_stmt_fetch($studentStatement) !== true) {
+            mysqli_stmt_close($studentStatement);
+            header('Location: edit-student.php?id=' . rawurlencode($studentId) . '&status=student_not_found');
+            exit;
+        }
+        mysqli_stmt_close($studentStatement);
     }
 
     $date = date("Y-m-d");
@@ -52,7 +89,7 @@ header("location:/filewebhook/pickup/admin/student-list.php");
     );
     if (!$statement) {
         error_log('Gagal menyiapkan penambahan kartu orang tua: ' . mysqli_error($connect));
-        header('Location: parents_card.php?rfidid=' . rawurlencode($rfidid) . '&status=error');
+        header('Location: ' . $returnUrl . '&status=error');
         exit;
     }
 
@@ -62,12 +99,12 @@ header("location:/filewebhook/pickup/admin/student-list.php");
     ) {
         error_log('Gagal menambahkan kartu orang tua: ' . mysqli_stmt_error($statement));
         mysqli_stmt_close($statement);
-        header('Location: parents_card.php?rfidid=' . rawurlencode($rfidid) . '&status=error');
+        header('Location: ' . $returnUrl . '&status=error');
         exit;
     }
 
     mysqli_stmt_close($statement);
-    header('Location: parents_card.php?rfidid=' . rawurlencode($rfidid) . '&status=added');
+    header('Location: ' . $returnUrl . '&status=added');
     exit;
 }
 ?>
