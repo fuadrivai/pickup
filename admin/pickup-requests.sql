@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS pickup_requests (
     student_name VARCHAR(255) NOT NULL,
     student_grade VARCHAR(100) NOT NULL,
     parent_name VARCHAR(255) NOT NULL,
-    parent_phone VARCHAR(50) NOT NULL,
+    parent_phone VARCHAR(50) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     INDEX idx_pickup_requests_student_id (student_id),

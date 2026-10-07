@@ -232,8 +232,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'students') {
             margin: 0;
         }
 
-        .filters > .col-md-4,
-        .filters > .col-md-8 {
+        .filters>.col-md-4,
+        .filters>.col-md-8 {
             width: auto;
             max-width: none;
             padding: 0;
@@ -546,8 +546,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'students') {
             text-align: center;
         }
 
-        @media (max-width: 640px) {
-        .site-header {
+        <blade media|%20(max-width%3A%20640px)%20%7B%0D>.site-header {
             padding: .8rem 1rem;
         }
 
@@ -660,8 +659,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'students') {
         <footer class="site-footer">Sekolah Mutiara Harapan Bintaro</footer>
     </main>
 
-    <div class="request-modal-backdrop" id="requestModal" role="dialog" aria-modal="true" aria-labelledby="requestModalTitle"
-        aria-hidden="true">
+    <div class="request-modal-backdrop" id="requestModal" role="dialog" aria-modal="true"
+        aria-labelledby="requestModalTitle" aria-hidden="true">
         <form class="request-dialog" id="requestForm">
             <div class="request-dialog-header">
                 <div>
@@ -673,12 +672,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'students') {
             <div class="request-dialog-body">
                 <input type="hidden" id="selectedStudentId" name="student_id">
                 <div class="field">
-                    <label for="parentName">Nama orang tua</label>
+                    <label for="parentName">Nama penjemput</label>
                     <input type="text" id="parentName" name="parent_name" maxlength="255" required>
                 </div>
                 <div class="field">
-                    <label for="parentPhone">Nomor telepon orang tua</label>
-                    <input type="tel" id="parentPhone" name="parent_phone" maxlength="50" autocomplete="tel" required>
+                    <label for="parentPhone">Nomor telepon penjemput</label>
+                    <input type="tel" id="parentPhone" name="parent_phone" maxlength="50" autocomplete="tel">
                 </div>
                 <div id="formNotice" class="notice" role="alert" aria-live="assertive"></div>
             </div>
@@ -709,7 +708,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'students') {
             var studentTable = $('#studentTable').DataTable({
                 dom: 'rtip',
                 pageLength: 10,
-                order: [[0, 'asc']],
+                order: [
+                    [0, 'asc']
+                ],
                 language: {
                     emptyTable: 'Belum ada data siswa.',
                     info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ siswa',
@@ -757,8 +758,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'students') {
                             escapeHtml(student.name),
                             '<span class="grade-badge">' + escapeHtml(student.grade) + '</span>',
                             '<button type="button" class="button request-button" data-student-id="' +
-                                escapeHtml(student.id) + '" data-student-name="' + escapeHtml(student.name) +
-                                '" data-student-grade="' + escapeHtml(student.grade) + '">Ajukan Pickup</button>'
+                            escapeHtml(student.id) + '" data-student-name="' + escapeHtml(student
+                                .name) +
+                            '" data-student-grade="' + escapeHtml(student.grade) +
+                            '">Ajukan Pickup</button>'
                         ];
                     }));
                 }
@@ -766,7 +769,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'students') {
             }
 
             studentTable.on('draw', function () {
-                studentCount.textContent = studentTable.rows({ search: 'applied' }).count() + ' siswa';
+                studentCount.textContent = studentTable.rows({
+                    search: 'applied'
+                }).count() + ' siswa';
             });
 
             function loadGrades() {
