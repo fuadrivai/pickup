@@ -631,15 +631,20 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'students') {
                 <span class="student-count" id="studentCount" aria-live="polite">Memuat siswa...</span>
             </div>
             <div class="filters">
-                <div class="field col-md-4">
-                    <label for="gradeFilter">Filter kelas</label>
-                    <select id="gradeFilter">
-                        <option value="">Semua kelas</option>
-                    </select>
-                </div>
-                <div class="field col-md-8">
-                    <label for="studentSearch">Cari nama siswa</label>
-                    <input type="search" id="studentSearch" placeholder="Ketik nama siswa..." autocomplete="off">
+                <div class="col-md-12">
+                    <div class="row">
+                        <div class="field col-md-4">
+                            <label for="gradeFilter">Filter kelas</label>
+                            <select id="gradeFilter">
+                                <option value="">Semua kelas</option>
+                            </select>
+                        </div>
+                        <div class="field col-md-8">
+                            <label for="studentSearch">Cari nama siswa</label>
+                            <input type="search" id="studentSearch" placeholder="Ketik nama siswa..."
+                                autocomplete="off">
+                        </div>
+                    </div>
                 </div>
             </div>
             <div id="pageNotice" class="notice" role="status" aria-live="polite"></div>

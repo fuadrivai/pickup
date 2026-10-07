@@ -10,15 +10,18 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $studentId = isset($_POST['student_id']) ? trim((string) $_POST['student_id']) : '';
 $parentName = isset($_POST['parent_name']) ? trim((string) $_POST['parent_name']) : '';
-$parentPhone = isset($_POST['parent_phone']) ? trim((string) $_POST['parent_phone']) : '';
+$parentPhone = isset($_POST['parent_phone']) ? trim((string) $_POST['parent_phone']) : null;
+if ($parentPhone === '') {
+    $parentPhone = null;
+}
 
-if ($studentId === '' || !ctype_digit($studentId) || $parentName === '' || $parentPhone === '') {
+if ($studentId === '' || !ctype_digit($studentId) || $parentName === '') {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Lengkapi nama orang tua dan nomor telepon.']);
+    echo json_encode(['success' => false, 'message' => 'Lengkapi nama orang tua.']);
     exit;
 }
 
-if (strlen($parentName) > 255 || strlen($parentPhone) > 50) {
+if (strlen($parentName) > 255 || ($parentPhone !== null && strlen($parentPhone) > 50)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Nama atau nomor telepon terlalu panjang.']);
     exit;
