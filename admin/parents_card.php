@@ -2,7 +2,7 @@
 <html lang="en">
 <?php
     include("../connect.php");
-    $rfidid = $_GET['rfidid'];
+    $rfidid = isset($_GET['rfidid']) ? trim((string) $_GET['rfidid']) : '';
     
     $sql = mysqli_query($connect, "SELECT * FROM parents_card where rfidid = '$rfidid'");
     $student = mysqli_query($connect, "SELECT * FROM student where rfidid = '$rfidid'");
@@ -61,10 +61,25 @@
                     <p class="mb-4">DataTables is a third party plugin that is used to generate the demo table below.
                         For more information about DataTables, please visit the <a target="_blank"
                             href="https://datatables.net">official DataTables documentation</a>.</p>
+                    <?php
+                    $statusMessages = [
+                        'added' => ['success', 'Parents card added successfully.'],
+                        'deleted' => ['success', 'Parents card deleted successfully.'],
+                        'invalid' => ['warning', 'Enter a student ID and parents card ID.'],
+                        'not_found' => ['warning', 'The parents card was not found for this student.'],
+                        'error' => ['danger', 'Unable to save the parents card. Please check the server error log.']
+                    ];
+                    $status = isset($_GET['status']) ? (string) $_GET['status'] : '';
+                    if (isset($statusMessages[$status])) {
+                        echo '<div class="alert alert-' . $statusMessages[$status][0] . '" role="alert">'
+                            . htmlspecialchars($statusMessages[$status][1], ENT_QUOTES, 'UTF-8')
+                            . '</div>';
+                    }
+                    ?>
                     <form method="post" action="update.php?type=parents_card">
                         <div class="mb-3">
                             <label for="exampleInputEmail1" class="form-label">Student ID</label>
-                            <input class="form-control" name="rfidid" value="<?php echo $rfidid?> " readonly>
+                            <input class="form-control" name="rfidid" value="<?php echo htmlspecialchars($rfidid, ENT_QUOTES, 'UTF-8'); ?>" readonly>
                             
                         </div>
                         <div class="mb-3">
@@ -106,7 +121,7 @@
                                             <td><?php echo$d['rfidid_parents']; ?></td>
                                             <td><?php echo$d['registered_date']; ?></td>
                                             <td>
-                                    <a href="delete.php?type=parents_card&rfidid_parents=<?php echo$d['rfidid_parents']; ?>" class="btn btn-danger btn-circle btn-sm">
+                                    <a href="delete.php?type=parents_card&rfidid=<?php echo rawurlencode($rfidid); ?>&rfidid_parents=<?php echo rawurlencode($d['rfidid_parents']); ?>" class="btn btn-danger btn-circle btn-sm">
                                         <i class="fas fa-trash"></i>
                                     </a></td>
                                         </tr>

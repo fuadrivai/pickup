@@ -38,12 +38,36 @@ header("location:/filewebhook/pickup/admin/student-list.php");
     // Check if path uses filewebhook based on previous code logic
     header("location: video-embed.php");
 }else if($type =='parents_card'){
-    $rfidid          = $_POST['rfidid'];
-    $rfidid_parents  = $_POST['rfidid_parents'];
+    $rfidid = isset($_POST['rfidid']) ? trim((string) $_POST['rfidid']) : '';
+    $rfidid_parents = isset($_POST['rfidid_parents']) ? trim((string) $_POST['rfidid_parents']) : '';
+    if ($rfidid === '' || $rfidid_parents === '') {
+        header('Location: parents_card.php?rfidid=' . rawurlencode($rfidid) . '&status=invalid');
+        exit;
+    }
+
     $date = date("Y-m-d");
-    $query="INSERT INTO parents_card (rfidid, rfidid_parents, registered_date) VALUES ('$rfidid', '$rfidid_parents', '$date')";
-    mysqli_query($connect, $query);
-    // mengalihkan ke halaman index.php
-    header('Location: ' . $_SERVER['HTTP_REFERER']);
+    $statement = mysqli_prepare(
+        $connect,
+        "INSERT INTO parents_card (rfidid, rfidid_parents, registered_date) VALUES (?, ?, ?)"
+    );
+    if (!$statement) {
+        error_log('Gagal menyiapkan penambahan kartu orang tua: ' . mysqli_error($connect));
+        header('Location: parents_card.php?rfidid=' . rawurlencode($rfidid) . '&status=error');
+        exit;
+    }
+
+    if (
+        !mysqli_stmt_bind_param($statement, 'sss', $rfidid, $rfidid_parents, $date) ||
+        !mysqli_stmt_execute($statement)
+    ) {
+        error_log('Gagal menambahkan kartu orang tua: ' . mysqli_stmt_error($statement));
+        mysqli_stmt_close($statement);
+        header('Location: parents_card.php?rfidid=' . rawurlencode($rfidid) . '&status=error');
+        exit;
+    }
+
+    mysqli_stmt_close($statement);
+    header('Location: parents_card.php?rfidid=' . rawurlencode($rfidid) . '&status=added');
+    exit;
 }
 ?>
