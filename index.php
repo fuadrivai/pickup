@@ -4,8 +4,10 @@ include 'connect.php';
 // Fetch the playlist
 $playlist_sql = mysqli_query($connect, "SELECT * FROM display_contents WHERE is_active=1 ORDER BY sequence ASC");
 $playlist = [];
-while($row = mysqli_fetch_assoc($playlist_sql)) {
-    $playlist[] = $row;
+if ($playlist_sql) {
+    while($row = mysqli_fetch_assoc($playlist_sql)) {
+        $playlist[] = $row;
+    }
 }
 
 $refreshInterval = 101 * 60; // Convert minutes to seconds
@@ -74,10 +76,12 @@ header("Refresh: $refreshInterval");
             padding: 20px;
             gap: 20px;
             height: calc(100vh - 70px);
+            transition: all 0.4s ease-in-out;
         }
 
         .content-col {
-            flex: 1.5;
+            flex: 1;
+            width: 100%;
             background: white;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.05);
@@ -86,6 +90,12 @@ header("Refresh: $refreshInterval");
             display: flex;
             flex-direction: column;
             position: relative;
+            transition: flex 0.4s ease-in-out;
+        }
+
+        /* Split view when student pickups exist */
+        .main-container.has-pickup .content-col {
+            flex: 1.5;
         }
         
         #dynamic-content {
@@ -165,9 +175,25 @@ header("Refresh: $refreshInterval");
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.05);
             border-top: 5px solid var(--brand-magenta);
-            display: flex;
+            display: none; /* Hidden by default when no student pickup */
             flex-direction: column;
             overflow: hidden;
+            animation: slideInRight 0.35s ease-out;
+        }
+
+        .main-container.has-pickup .pickup-col {
+            display: flex;
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(25px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
         .pickup-header {
             background-color: var(--brand-magenta);
@@ -218,10 +244,11 @@ header("Refresh: $refreshInterval");
         }
 
         .scanner-form {
-            position: absolute;
+            position: fixed;
             top: -1000px;
             left: -1000px;
             opacity: 0;
+            pointer-events: none;
         }
     </style>
 </head>
@@ -257,8 +284,8 @@ header("Refresh: $refreshInterval");
     </div>
 
     <div class="scanner-form">
-        <form method="post" class="form-user">
-            <input id="myInput" type="text" name="nama" autofocus>
+        <form method="post" class="form-user" onsubmit="event.preventDefault(); return false;">
+            <input id="myInput" type="text" name="nama" autocomplete="off" autofocus>
             <button id="myBtn" type="button" class="tombol-simpan">Simpan</button>
         </form>
     </div>
@@ -383,14 +410,24 @@ header("Refresh: $refreshInterval");
         var scrollContainer = $('#scroll-container');
         var table = $('#pickup-table');
         var isScrolling = true;
+        var scrollAnimationId = null;
+        var hasActivePickup = false;
 
         function startScroll() {
-            if (!isScrolling) return;
+            if (scrollAnimationId) {
+                cancelAnimationFrame(scrollAnimationId);
+                scrollAnimationId = null;
+            }
+
+            if (!isScrolling || !hasActivePickup) {
+                return;
+            }
+
             var currentTop = parseInt(table.css('top')) || 0;
             var containerHeight = scrollContainer.height();
             var tableHeight = table.height();
 
-            if (tableHeight > containerHeight) {
+            if (tableHeight > containerHeight && containerHeight > 0) {
                 currentTop -= 1;
                 if (Math.abs(currentTop) >= tableHeight) {
                     currentTop = containerHeight;
@@ -399,82 +436,125 @@ header("Refresh: $refreshInterval");
             } else {
                 table.css('top', '0px');
             }
-            requestAnimationFrame(startScroll);
+            scrollAnimationId = requestAnimationFrame(startScroll);
         }
 
         scrollContainer.hover(
-            function() { isScrolling = false; },
-            function() { isScrolling = true; startScroll(); }
+            function() { 
+                isScrolling = false; 
+            },
+            function() { 
+                if (hasActivePickup) {
+                    isScrolling = true; 
+                    startScroll(); 
+                }
+            }
         );
+
+        function updatePickupDisplay(students) {
+            var tbody = $("#pickup-table tbody");
+            var mainContainer = $(".main-container");
+
+            if (students && students.length > 0) {
+                hasActivePickup = true;
+                mainContainer.addClass("has-pickup");
+
+                tbody.empty();
+                $.each(students, function() {
+                    tbody.append("<tr><td>" + (this['student_name'] || '') + "</td><td>" + (this['grade'] || '') + "</td></tr>");
+                });
+
+                if (!scrollAnimationId) {
+                    isScrolling = true;
+                    startScroll();
+                }
+            } else {
+                hasActivePickup = false;
+                mainContainer.removeClass("has-pickup");
+                tbody.empty();
+                table.css('top', '0px');
+                if (scrollAnimationId) {
+                    cancelAnimationFrame(scrollAnimationId);
+                    scrollAnimationId = null;
+                }
+            }
+        }
 
         function fetchPickupData() {
             $.ajaxSetup({ cache: false });
             $.getJSON("data.php", function(data) {
-                var tbody = $("#pickup-table tbody");
-                tbody.empty();
-                
-                if(data.result && data.result.length > 0) {
-                    $.each(data.result, function() {
-                        tbody.append("<tr><td>" + this['student_name'] + "</td><td>" + this['grade'] + "</td></tr>");
-                    });
-                } else {
-                    tbody.append("<tr><td colspan='2' style='text-align:center; color:#999;'>Waiting for scan...</td></tr>");
-                }
-                
-                if(!isScrolling) {
-                    isScrolling = true;
-                    startScroll();
-                }
+                updatePickupDisplay(data ? data.result : []);
             }).fail(function() {
                 $.getJSON("https://whatsapp.mhis.link/filewebhook/pickup/data.php", function(data) {
-                    var tbody = $("#pickup-table tbody");
-                    tbody.empty();
-                    if(data.result && data.result.length > 0) {
-                        $.each(data.result, function() {
-                            tbody.append("<tr><td>" + this['student_name'] + "</td><td>" + this['grade'] + "</td></tr>");
-                        });
+                    updatePickupDisplay(data ? data.result : []);
+                }).fail(function() {
+                    if (!hasActivePickup) {
+                        updatePickupDisplay([]);
                     }
                 });
             });
         }
 
+        // Initial fetch and regular polling
         fetchPickupData();
         setInterval(fetchPickupData, 3000);
-        setTimeout(startScroll, 1000);
 
+        // Scanner input management
         var input = document.getElementById("myInput");
-        input.addEventListener("keypress", function(event) {
-            if (event.key === "Enter") {
+
+        function keepInputFocused() {
+            if (document.activeElement !== input) {
+                input.focus();
+            }
+        }
+
+        // Keep input focused at all times for automatic scanner detection
+        input.focus();
+        document.addEventListener('click', keepInputFocused);
+        window.addEventListener('keydown', function(event) {
+            if (document.activeElement !== input) {
+                input.focus();
+            }
+        });
+        setInterval(keepInputFocused, 1000);
+
+        // Handle Enter key from barcode / RFID scanner
+        $(input).on("keydown keypress", function(event) {
+            if (event.key === "Enter" || event.keyCode === 13) {
                 event.preventDefault();
-                document.getElementById("myBtn").click();
+                $("#myBtn").click();
             }
         });
 
+        // Submit scanned data
         $(".tombol-simpan").click(function(){
+            var inputVal = $.trim($(input).val());
+            if (!inputVal) {
+                return;
+            }
+
             var data = $('.form-user').serialize();
-            document.getElementById("myInput").value = "";
+            input.value = "";
+
             $.ajax({
                 type: 'POST',
                 url: "simpan.php",
                 data: data,
-                success: function() { fetchPickupData(); },
+                success: function() { 
+                    fetchPickupData(); 
+                },
                 error: function() {
                     $.ajax({
                         type: 'POST',
                         url: "https://whatsapp.mhis.link/filewebhook/pickup/simpan.php",
                         data: data,
-                        success: function() { fetchPickupData(); }
+                        success: function() { 
+                            fetchPickupData(); 
+                        }
                     });
                 }
             });
         });
-
-        document.addEventListener('click', function() { document.getElementById("myInput").focus(); });
-        setInterval(function() {
-            if (document.activeElement !== document.getElementById("myInput")) {
-                document.getElementById("myInput").focus();
-            }
-        }, 2000);
 
     </script>
 </body>
