@@ -57,6 +57,7 @@
                                             <option value="link" <?php if($d['display_type'] == 'link') echo 'selected'; ?>>Web Link (iframe)</option>
                                             <option value="slide" <?php if($d['display_type'] == 'slide') echo 'selected'; ?>>Slide / Image</option>
                                             <option value="schedule" <?php if($d['display_type'] == 'schedule') echo 'selected'; ?>>Timetable / Schedule</option>
+                                            <option value="duty_roster" <?php if($d['display_type'] == 'duty_roster') echo 'selected'; ?>>Duty Roster Hari Ini</option>
                                             <option value="api_events" <?php if($d['display_type'] == 'api_events') echo 'selected'; ?>>School API Events</option>
                                             <option value="embed_code" <?php if($d['display_type'] == 'embed_code') echo 'selected'; ?>>Custom HTML Embed (Instagram, Twitter, Widget)</option>
                                         </select>
@@ -89,6 +90,12 @@
                                 <div class="mb-3" id="field_schedule" style="display: none;">
                                     <div class="alert alert-info">
                                         When the playlist reaches this item, it will automatically fetch and display today's schedule from the <strong>Schedule Manager</strong>. Make sure you add events there!
+                                    </div>
+                                </div>
+
+                                <div class="mb-3" id="field_duty_roster" style="display: none;">
+                                    <div class="alert alert-info">
+                                        Menampilkan tugas Duty Roster hari ini dari jadwal aktif terbaru untuk setiap divisi. Pastikan roster sudah memiliki rincian tugas dan statusnya aktif.
                                     </div>
                                 </div>
                                 
@@ -146,6 +153,7 @@
             document.getElementById('field_link').style.display = (type === 'video' || type === 'link') ? 'block' : 'none';
             document.getElementById('field_slide').style.display = (type === 'slide') ? 'block' : 'none';
             document.getElementById('field_schedule').style.display = (type === 'schedule') ? 'block' : 'none';
+            document.getElementById('field_duty_roster').style.display = (type === 'duty_roster') ? 'block' : 'none';
             document.getElementById('field_api_events').style.display = (type === 'api_events') ? 'block' : 'none';
             document.getElementById('field_embed').style.display = (type === 'embed_code') ? 'block' : 'none';
         }

@@ -168,6 +168,104 @@ header("Refresh: $refreshInterval");
             width: 35%;
         }
 
+        .duty-roster-container {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding: 8px;
+        }
+        .duty-roster-heading {
+            color: var(--brand-magenta);
+            font-size: clamp(22px, 2vw, 34px);
+            font-weight: 800;
+            margin-bottom: 4px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+        .duty-roster-date {
+            color: #5f6368;
+            font-size: clamp(14px, 1.2vw, 20px);
+            font-weight: 600;
+            margin-bottom: 18px;
+            text-align: center;
+        }
+        .duty-division {
+            background: #fff;
+            border: 1px solid #e4e8ef;
+            border-radius: 12px;
+            box-shadow: 0 3px 12px rgba(0,0,0,.05);
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        .duty-division-title {
+            background: #eaf2f8;
+            color: #27364b;
+            font-size: clamp(16px, 1.35vw, 22px);
+            font-weight: 800;
+            padding: 10px 14px;
+        }
+        .duty-division-title small {
+            color: #68778d;
+            font-size: .72em;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .duty-slots-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            padding: 12px;
+        }
+        .duty-slot {
+            background: #fff;
+            border: 1px solid #e2e9ef;
+            border-radius: 10px;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .duty-slot-heading {
+            background: #f7f9fc;
+            border-bottom: 1px solid #e2e9ef;
+            padding: 10px 12px;
+        }
+        .duty-time {
+            color: var(--brand-magenta);
+            display: block;
+            font-size: clamp(14px, 1.1vw, 18px);
+            font-weight: 800;
+            margin-bottom: 3px;
+        }
+        .duty-place { color: #27364b; font-size: clamp(15px, 1.2vw, 20px); font-weight: 800; }
+        .duty-task { color: #68778d; display: block; font-size: .8em; margin-top: 2px; }
+        .duty-teachers {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
+            padding: 10px;
+        }
+        .duty-teacher {
+            background: #fff;
+            border: 1px solid #e2e9ef;
+            border-radius: 10px;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .duty-teacher-photo, .duty-teacher-initial {
+            align-items: center;
+            background: linear-gradient(135deg, #d8e8ed, #eff5f7);
+            display: flex;
+            height: clamp(120px, 13vw, 190px);
+            justify-content: center;
+            object-fit: cover;
+            width: 100%;
+        }
+        .duty-teacher-initial { color: #31515a; font-size: clamp(36px, 5vw, 64px); font-weight: 800; }
+        .duty-teacher-info { display: flex; flex-direction: column; gap: 3px; line-height: 1.2; padding: 8px 9px 10px; }
+        .duty-teacher-name { color: #27364b; font-size: clamp(13px, 1vw, 16px); font-weight: 800; overflow-wrap: anywhere; }
+        .duty-teacher-division { color: #68778d; font-size: clamp(11px, .8vw, 13px); }
+        .duty-empty { color: #77808c; font-size: 18px; padding: 24px; text-align: center; }
+
         /* Right Column - Pickup List */
         .pickup-col {
             flex: 1;
@@ -306,6 +404,13 @@ header("Refresh: $refreshInterval");
         var playlist = <?php echo json_encode($playlist); ?>;
         var currentItemIndex = -1;
         var displayContainer = document.getElementById('dynamic-content');
+        var dutyRosterRefreshTimer = null;
+        var dutyScrollAnimationId = null;
+        var dutyScrollDirection = 1;
+        var dutyScrollLastFrame = 0;
+        var dutyScrollPauseUntil = 0;
+        var dutyScrollContainer = null;
+        var dutyScrollResizeObserver = null;
 
         // Automatically check for playlist updates every 1 minute
         setInterval(function() {
@@ -321,6 +426,12 @@ header("Refresh: $refreshInterval");
         }, 60000);
 
         function playNextItem() {
+            stopDutyRosterAutoScroll();
+            if (dutyRosterRefreshTimer !== null) {
+                clearInterval(dutyRosterRefreshTimer);
+                dutyRosterRefreshTimer = null;
+            }
+
             if (playlist.length === 0) {
                 displayContainer.innerHTML = '<h2>No active content to display</h2>';
                 return;
@@ -350,6 +461,9 @@ header("Refresh: $refreshInterval");
                 }
                 else if (item.display_type === 'schedule') {
                     renderTimetable(item.title);
+                }
+                else if (item.display_type === 'duty_roster') {
+                    renderDutyRoster(item.title);
                 }
                 else if (item.display_type === 'api_events') {
                     renderApiEvents(item.title);
@@ -383,6 +497,203 @@ header("Refresh: $refreshInterval");
                     tbody.append('<tr><td colspan="2" style="text-align:center; padding: 30px; color: #888;">No events scheduled for today.</td></tr>');
                 }
             });
+        }
+
+        function renderDutyRoster(title) {
+            var container = $('<div>', { 'class': 'duty-roster-container' });
+            var heading = $('<div>', { 'class': 'duty-roster-heading' }).text(title || 'Duty Roster');
+            var dateLabel = $('<div>', { 'class': 'duty-roster-date' }).text('Memuat jadwal piket saat ini...');
+            container.append(heading, dateLabel);
+            displayContainer.replaceChildren(container[0]);
+
+            function loadCurrentDutyRoster() {
+                $.getJSON('get_duty_roster.php')
+                .done(function(response) {
+                    var scrollPosition = container.scrollTop();
+                    dateLabel.text(response.weekday_name + ', ' + new Date().toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                    }) + ' · ' + response.current_time);
+
+                    container.find('.duty-division, .duty-empty').remove();
+                    if (response.status !== 'success' || !Array.isArray(response.data) || response.data.length === 0) {
+                        container.append($('<div>', {
+                            'class': 'duty-empty',
+                            text: 'Tidak ada tugas piket yang sedang berlangsung saat ini.'
+                        }));
+                        return;
+                    }
+
+                    response.data.forEach(function(division) {
+                        var section = $('<section>', { 'class': 'duty-division' });
+                        var divisionTitle = $('<div>', { 'class': 'duty-division-title' }).text(division.division_name);
+                        if (division.academic_year) {
+                            divisionTitle.append($('<small>').text(division.academic_year));
+                        }
+                        section.append(divisionTitle);
+
+                        if (!Array.isArray(division.slots) || division.slots.length === 0) {
+                            section.append($('<div>', {
+                                'class': 'duty-empty',
+                                text: 'Belum ada tugas untuk hari ini.'
+                            }));
+                            container.append(section);
+                            return;
+                        }
+
+                        var slotsGrid = $('<div>', { 'class': 'duty-slots-grid' });
+
+                        division.slots.forEach(function(slot) {
+                            var placeLabel = slot.place_name || slot.assignment_title || slot.event_name || 'Tugas piket';
+                            var slotCard = $('<article>', { 'class': 'duty-slot' });
+                            var slotHeading = $('<div>', { 'class': 'duty-slot-heading' })
+                                .append($('<span>', { 'class': 'duty-time' }).text(slot.start_time + ' - ' + slot.end_time))
+                                .append($('<span>', { 'class': 'duty-place' }).text(placeLabel));
+                            var taskLabel = [slot.section_title, slot.assignment_title, slot.event_name]
+                                .filter(function(value) { return value && value !== placeLabel; })
+                                .join(' · ');
+                            if (taskLabel) {
+                                slotHeading.append($('<span>', { 'class': 'duty-task' }).text(taskLabel));
+                            }
+
+                            var teacherList = $('<div>', { 'class': 'duty-teachers' });
+                            if (Array.isArray(slot.teachers) && slot.teachers.length > 0) {
+                                slot.teachers.forEach(function(teacher) {
+                                    var teacherCard = $('<div>', { 'class': 'duty-teacher' });
+                                    var photoPath = typeof teacher.photo === 'string' ? teacher.photo : '';
+                                    var initial = (teacher.name || '?').trim().charAt(0).toUpperCase() || '?';
+                                    if (
+                                        /^https?:\/\//i.test(photoPath) ||
+                                        (photoPath.indexOf('admin/uploads/teachers/') === 0 && photoPath.indexOf('..') === -1)
+                                    ) {
+                                        var teacherPhoto = $('<img>', {
+                                            'class': 'duty-teacher-photo',
+                                            src: photoPath,
+                                            alt: 'Foto ' + (teacher.name || '')
+                                        }).on('error', function() {
+                                            $(this).replaceWith($('<span>', {
+                                                'class': 'duty-teacher-initial',
+                                                text: initial
+                                            }));
+                                        });
+                                        teacherCard.append(teacherPhoto);
+                                    } else {
+                                        teacherCard.append($('<span>', { 'class': 'duty-teacher-initial', text: initial }));
+                                    }
+                                    var teacherInfo = $('<span>', { 'class': 'duty-teacher-info' })
+                                        .append($('<span>', { 'class': 'duty-teacher-name' }).text(teacher.name || 'Nama tidak tersedia'))
+                                        .append($('<span>', { 'class': 'duty-teacher-division' }).text(teacher.division || 'Divisi tidak tersedia'));
+                                    teacherCard.append(teacherInfo);
+                                    teacherList.append(teacherCard);
+                                });
+                            } else {
+                                teacherList.append($('<span>', { 'class': 'text-muted' }).text('Belum ditentukan'));
+                            }
+                            if (slot.notes) {
+                                slotCard.attr('title', slot.notes);
+                            }
+                            slotCard.append(slotHeading, teacherList);
+                            slotsGrid.append(slotCard);
+                        });
+
+                        section.append(slotsGrid);
+                        container.append(section);
+                    });
+                    container.scrollTop(scrollPosition);
+                    if (dutyScrollContainer !== container[0] || dutyScrollAnimationId === null) {
+                        startDutyRosterAutoScroll(container[0]);
+                    }
+                })
+                .fail(function() {
+                    dateLabel.text('');
+                    container.find('.duty-division, .duty-empty').remove();
+                    container.append($('<div>', {
+                        'class': 'duty-empty text-danger',
+                        text: 'Gagal memuat Duty Roster. Silakan periksa koneksi dan data jadwal.'
+                    }));
+                });
+            }
+
+            loadCurrentDutyRoster();
+            dutyRosterRefreshTimer = setInterval(loadCurrentDutyRoster, 30000);
+        }
+
+        function stopDutyRosterAutoScroll() {
+            if (dutyScrollAnimationId !== null) {
+                cancelAnimationFrame(dutyScrollAnimationId);
+                dutyScrollAnimationId = null;
+            }
+            if (dutyScrollResizeObserver !== null) {
+                dutyScrollResizeObserver.disconnect();
+                dutyScrollResizeObserver = null;
+            }
+            dutyScrollContainer = null;
+            dutyScrollLastFrame = 0;
+            dutyScrollPauseUntil = 0;
+        }
+
+        function startDutyRosterAutoScroll(container) {
+            if (!container || !container.isConnected) {
+                return;
+            }
+            stopDutyRosterAutoScroll();
+            dutyScrollContainer = container;
+            dutyScrollDirection = 1;
+            dutyScrollLastFrame = 0;
+            dutyScrollPauseUntil = 0;
+            if (typeof ResizeObserver !== 'undefined') {
+                dutyScrollResizeObserver = new ResizeObserver(function() {
+                    if (dutyScrollContainer === container && dutyScrollAnimationId === null) {
+                        dutyScrollAnimationId = requestAnimationFrame(animateDutyRoster);
+                    }
+                });
+                dutyScrollResizeObserver.observe(container);
+                if (container.firstElementChild) {
+                    dutyScrollResizeObserver.observe(container.firstElementChild);
+                }
+            }
+
+            function animateDutyRoster(timestamp) {
+                if (!container.isConnected || dutyScrollContainer !== container) {
+                    dutyScrollAnimationId = null;
+                    return;
+                }
+
+                if (dutyScrollLastFrame === 0) {
+                    dutyScrollLastFrame = timestamp;
+                }
+                var elapsed = Math.min(timestamp - dutyScrollLastFrame, 100);
+                dutyScrollLastFrame = timestamp;
+                var maxScroll = container.scrollHeight - container.clientHeight;
+                if (maxScroll <= 1) {
+                    container.scrollTop = 0;
+                    dutyScrollAnimationId = null;
+                    return;
+                }
+
+                if (timestamp >= dutyScrollPauseUntil) {
+                    var nextScroll = container.scrollTop + dutyScrollDirection * elapsed * 0.045;
+                    if (nextScroll >= maxScroll) {
+                        container.scrollTop = maxScroll;
+                        dutyScrollDirection = -1;
+                        dutyScrollPauseUntil = timestamp + 900;
+                    } else if (nextScroll <= 0) {
+                        container.scrollTop = 0;
+                        dutyScrollDirection = 1;
+                        dutyScrollPauseUntil = timestamp + 900;
+                    } else {
+                        container.scrollTop = nextScroll;
+                    }
+                }
+
+                dutyScrollAnimationId = null;
+                if (dutyScrollContainer === container && container.isConnected && maxScroll > 1) {
+                    dutyScrollAnimationId = requestAnimationFrame(animateDutyRoster);
+                }
+            }
+
+            dutyScrollAnimationId = requestAnimationFrame(animateDutyRoster);
         }
         
         function renderApiEvents(title) {

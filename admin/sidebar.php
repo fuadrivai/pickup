@@ -105,6 +105,26 @@
             <span>Timetable Schedule</span></a>
     </li>
 
+    <li class="nav-item">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseDutyRoster"
+            aria-expanded="false" aria-controls="collapseDutyRoster">
+            <i class="fas fa-fw fa-clipboard-list"></i>
+            <span>Duty Roster</span>
+        </a>
+        <div id="collapseDutyRoster" class="collapse" data-parent="#accordionSidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+                <h6 class="collapse-header">Master Data:</h6>
+                <a class="collapse-item" href="divisions.php">Divisi</a>
+                <a class="collapse-item" href="teachers.php">Guru</a>
+                <a class="collapse-item" href="places.php">Place</a>
+                <a class="collapse-item" href="events-run.php">Event Run</a>
+                <div class="collapse-divider"></div>
+                <h6 class="collapse-header">Schedule:</h6>
+                <a class="collapse-item" href="duty-rosters.php">Duty Roster Mapping</a>
+            </div>
+        </div>
+    </li>
+
     <!-- Nav Item - Tables -->
     <li class="nav-item">
         <a class="nav-link" href="tables.html">
