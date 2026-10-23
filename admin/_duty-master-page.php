@@ -238,6 +238,25 @@ if ($result) {
 }
 
 $modalId = 'dutyMasterModal';
+$teacherDivisionCounts = [];
+if ($masterKey === 'teacher') {
+    foreach ($divisions as $division) {
+        $teacherDivisionCounts[(string) $division['id']] = [
+            'name' => $division['name'],
+            'count' => 0
+        ];
+    }
+    foreach ($rows as $row) {
+        $divisionId = (string) $row['division_id'];
+        if (!isset($teacherDivisionCounts[$divisionId])) {
+            $teacherDivisionCounts[$divisionId] = [
+                'name' => $row['division_name'],
+                'count' => 0
+            ];
+        }
+        $teacherDivisionCounts[$divisionId]['count']++;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -249,6 +268,9 @@ $modalId = 'dutyMasterModal';
     <link href="vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
     <link href="https://fonts.googleapis.com/css?family=Nunito:200,200i,400,400i,600,600i,700,700i,800,800i,900,900i" rel="stylesheet">
     <link href="css/sb-admin-2.min.css" rel="stylesheet">
+    <?php if ($masterKey === 'teacher') { ?>
+        <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
+    <?php } ?>
 </head>
 <body id="page-top">
     <div id="wrapper">
@@ -275,8 +297,25 @@ $modalId = 'dutyMasterModal';
                             </button>
                         </div>
                         <div class="card-body">
+                            <?php if ($masterKey === 'teacher') { ?>
+                                <ul class="nav nav-pills mb-3" id="teacherDivisionTabs" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button type="button" class="nav-link active" data-division-name="" aria-pressed="true">
+                                            Semua Divisi <span class="badge badge-light ml-1"><?php echo count($rows); ?></span>
+                                        </button>
+                                    </li>
+                                    <?php foreach ($teacherDivisionCounts as $divisionCount) { ?>
+                                        <li class="nav-item" role="presentation">
+                                            <button type="button" class="nav-link" data-division-name="<?php echo dutyMasterPageEscape($divisionCount['name']); ?>" aria-pressed="false">
+                                                <?php echo dutyMasterPageEscape($divisionCount['name']); ?>
+                                                <span class="badge badge-light ml-1"><?php echo (int) $divisionCount['count']; ?></span>
+                                            </button>
+                                        </li>
+                                    <?php } ?>
+                                </ul>
+                            <?php } ?>
                             <div class="table-responsive">
-                                <table class="table table-bordered" width="100%" cellspacing="0">
+                                <table class="table table-bordered" <?php if ($masterKey === 'teacher') { ?>id="teacherDataTable"<?php } ?> width="100%" cellspacing="0">
                                     <thead>
                                         <tr>
                                             <th>ID</th>
@@ -325,7 +364,7 @@ $modalId = 'dutyMasterModal';
                                                 </td>
                                             </tr>
                                         <?php } ?>
-                                        <?php if (count($rows) === 0) { ?>
+                                        <?php if (count($rows) === 0 && $masterKey !== 'teacher') { ?>
                                             <tr><td colspan="<?php echo 3 + ($dutyMaster['has_division'] ? 1 : 0) + ($dutyMaster['has_photo'] ? 1 : 0); ?>" class="text-center text-muted">Belum ada data.</td></tr>
                                         <?php } ?>
                                     </tbody>
@@ -397,7 +436,51 @@ $modalId = 'dutyMasterModal';
     <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
     <script src="js/sb-admin-2.min.js"></script>
+    <?php if ($masterKey === 'teacher') { ?>
+        <script src="vendor/datatables/jquery.dataTables.min.js"></script>
+        <script src="vendor/datatables/dataTables.bootstrap4.min.js"></script>
+    <?php } ?>
     <script>
+        <?php if ($masterKey === 'teacher') { ?>
+        var teacherTable = $('#teacherDataTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [[5, 10, 20, 50, 100], [5, 10, 20, 50, 100]],
+            order: [[1, 'asc']],
+            columnDefs: [{ targets: [3, 4], orderable: false }],
+            language: {
+                search: 'Cari:',
+                lengthMenu: 'Tampilkan _MENU_ data',
+                info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ guru',
+                infoEmpty: 'Belum ada data guru',
+                infoFiltered: '(disaring dari _MAX_ total guru)',
+                zeroRecords: 'Guru tidak ditemukan',
+                emptyTable: 'Belum ada data guru',
+                paginate: {
+                    first: 'Pertama',
+                    last: 'Terakhir',
+                    next: 'Berikutnya',
+                    previous: 'Sebelumnya'
+                }
+            }
+        });
+
+        $('#teacherDivisionTabs').on('click', '.nav-link', function() {
+            var divisionName = $(this).attr('data-division-name');
+            $('#teacherDivisionTabs .nav-link')
+                .removeClass('active')
+                .attr('aria-pressed', 'false');
+            $(this).addClass('active').attr('aria-pressed', 'true');
+
+            if (divisionName === '') {
+                teacherTable.column(2).search('').draw();
+                return;
+            }
+
+            var escapedDivision = $.fn.dataTable.util.escapeRegex(divisionName);
+            teacherTable.column(2).search('^' + escapedDivision + '$', true, false).draw();
+        });
+        <?php } ?>
+
         $('#<?php echo $modalId; ?>').on('show.bs.modal', function(event) {
             var button = $(event.relatedTarget);
             var isEdit = button.data('mode') === 'edit';

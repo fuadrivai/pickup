@@ -519,7 +519,7 @@ header("Refresh: $refreshInterval");
         function renderDutyRoster(title) {
             var container = $('<div>', { 'class': 'duty-roster-container' });
             var heading = $('<div>', { 'class': 'duty-roster-heading' }).text(title || 'Duty Roster');
-            var dateLabel = $('<div>', { 'class': 'duty-roster-date' }).text('Memuat jadwal piket saat ini...');
+            var dateLabel = $('<div>', { 'class': 'duty-roster-date' }).text('Loading current duty schedule...');
             container.append(heading, dateLabel);
             displayContainer.replaceChildren(container[0]);
 
@@ -527,7 +527,8 @@ header("Refresh: $refreshInterval");
                 $.getJSON('get_duty_roster.php')
                 .done(function(response) {
                     var scrollPosition = container.scrollTop();
-                    dateLabel.text(response.weekday_name + ', ' + new Date().toLocaleDateString('id-ID', {
+                    dateLabel.text(new Date().toLocaleDateString('en-US', {
+                        weekday: 'long',
                         day: 'numeric',
                         month: 'long',
                         year: 'numeric'
@@ -537,7 +538,7 @@ header("Refresh: $refreshInterval");
                     if (response.status !== 'success' || !Array.isArray(response.data) || response.data.length === 0) {
                         container.append($('<div>', {
                             'class': 'duty-empty',
-                            text: 'Tidak ada tugas piket yang sedang berlangsung saat ini.'
+                            text: 'There are no duty assignments currently in progress.'
                         }));
                         return;
                     }
@@ -553,7 +554,7 @@ header("Refresh: $refreshInterval");
                         if (!Array.isArray(roster.areas) || roster.areas.length === 0) {
                             section.append($('<div>', {
                                 'class': 'duty-empty',
-                                text: 'Tidak ada tugas yang sedang berlangsung.'
+                                text: 'There are no duty assignments currently in progress.'
                             }));
                             container.append(section);
                             return;
@@ -561,7 +562,7 @@ header("Refresh: $refreshInterval");
 
                         roster.areas.forEach(function(area) {
                             var areaSection = $('<section>', { 'class': 'duty-area' });
-                            areaSection.append($('<div>', { 'class': 'duty-area-title' }).text(area.place_name || 'Area belum ditentukan'));
+                            areaSection.append($('<div>', { 'class': 'duty-area-title' }).text(area.place_name || 'Area not specified'));
                             var slotsGrid = $('<div>', { 'class': 'duty-slots-grid' });
 
                             area.slots.forEach(function(slot) {
@@ -589,7 +590,7 @@ header("Refresh: $refreshInterval");
                                             var teacherPhoto = $('<img>', {
                                                 'class': 'duty-teacher-photo',
                                                 src: photoPath,
-                                                alt: 'Foto ' + (teacher.name || '')
+                                                alt: 'Photo of ' + (teacher.name || '')
                                             }).on('error', function() {
                                                 $(this).replaceWith($('<span>', {
                                                     'class': 'duty-teacher-initial',
@@ -601,13 +602,13 @@ header("Refresh: $refreshInterval");
                                             teacherCard.append($('<span>', { 'class': 'duty-teacher-initial', text: initial }));
                                         }
                                         var teacherInfo = $('<span>', { 'class': 'duty-teacher-info' })
-                                            .append($('<span>', { 'class': 'duty-teacher-name' }).text(teacher.name || 'Nama tidak tersedia'))
-                                            .append($('<span>', { 'class': 'duty-teacher-division' }).text(teacher.division || 'Divisi tidak tersedia'));
+                                            .append($('<span>', { 'class': 'duty-teacher-name' }).text(teacher.name || 'Name unavailable'))
+                                            .append($('<span>', { 'class': 'duty-teacher-division' }).text(teacher.division || 'Division unavailable'));
                                         teacherCard.append(teacherInfo);
                                         teacherList.append(teacherCard);
                                     });
                                 } else {
-                                    teacherList.append($('<span>', { 'class': 'text-muted' }).text('Belum ditentukan'));
+                                    teacherList.append($('<span>', { 'class': 'text-muted' }).text('Not assigned'));
                                 }
                                 if (slot.notes) {
                                     slotCard.attr('title', slot.notes);
@@ -631,7 +632,7 @@ header("Refresh: $refreshInterval");
                     container.find('.duty-division, .duty-empty').remove();
                     container.append($('<div>', {
                         'class': 'duty-empty text-danger',
-                        text: 'Gagal memuat Duty Roster. Silakan periksa koneksi dan data jadwal.'
+                        text: 'Failed to load the duty roster. Please check the connection and schedule data.'
                     }));
                 });
             }
