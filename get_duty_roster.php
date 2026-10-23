@@ -20,14 +20,14 @@ $query = '
         r.id AS roster_id,
         r.title AS roster_title,
         r.academic_year,
-        d.id AS division_id,
-        d.name AS division_name,
         s.id AS slot_id,
         s.section_title,
         s.assignment_title,
         s.start_time,
         s.end_time,
         s.notes AS slot_notes,
+        s.sort_order,
+        p.id AS place_id,
         p.name AS place_name,
         e.name AS event_name,
         t.id AS teacher_id,
@@ -35,7 +35,6 @@ $query = '
         t.photo_path AS teacher_photo,
         teacher_division.name AS teacher_division_name
     FROM duty_rosters r
-    JOIN duty_divisions d ON d.id = r.division_id
     LEFT JOIN duty_roster_slots s
         ON s.roster_id = r.id
         AND s.start_time <= ?
@@ -45,18 +44,14 @@ $query = '
     LEFT JOIN duty_roster_assignments a ON a.slot_id = s.id AND a.weekday = ?
     LEFT JOIN duty_teachers t ON t.id = a.teacher_id
     LEFT JOIN duty_divisions teacher_division ON teacher_division.id = t.division_id
-    WHERE r.is_active = 1
-      AND NOT EXISTS (
-          SELECT 1
-          FROM duty_rosters newer
-          WHERE newer.division_id = r.division_id
-            AND newer.is_active = 1
-            AND (
-                newer.created_at > r.created_at
-                OR (newer.created_at = r.created_at AND newer.id > r.id)
-            )
-      )
-    ORDER BY d.name ASC, s.sort_order ASC, s.start_time ASC, s.id ASC, t.name ASC';
+    WHERE r.id = (
+        SELECT newest.id
+        FROM duty_rosters newest
+        WHERE newest.is_active = 1
+        ORDER BY newest.created_at DESC, newest.id DESC
+        LIMIT 1
+    )
+    ORDER BY r.academic_year DESC, s.sort_order ASC, s.start_time ASC, s.id ASC, t.name ASC';
 
 $statement = mysqli_prepare($connect, $query);
 if (
@@ -82,15 +77,14 @@ if (!$result) {
     exit;
 }
 
-$divisions = [];
+$rosters = [];
 while ($row = mysqli_fetch_assoc($result)) {
-    $divisionId = (int) $row['division_id'];
-    if (!isset($divisions[$divisionId])) {
-        $divisions[$divisionId] = [
-            'division_name' => $row['division_name'],
+    $rosterId = (int) $row['roster_id'];
+    if (!isset($rosters[$rosterId])) {
+        $rosters[$rosterId] = [
             'roster_title' => $row['roster_title'],
             'academic_year' => $row['academic_year'],
-            'slots' => []
+            'areas' => []
         ];
     }
 
@@ -98,14 +92,24 @@ while ($row = mysqli_fetch_assoc($result)) {
         continue;
     }
 
+    $areaKey = $row['place_id'] !== null
+        ? 'place:' . $row['place_id']
+        : 'other:' . ($row['assignment_title'] ?: $row['event_name'] ?: 'other');
+    $areaName = $row['place_name'] ?: ($row['assignment_title'] ?: $row['event_name'] ?: 'Area belum ditentukan');
+    if (!isset($rosters[$rosterId]['areas'][$areaKey])) {
+        $rosters[$rosterId]['areas'][$areaKey] = [
+            'place_name' => $areaName,
+            'slots' => []
+        ];
+    }
+
     $slotId = (int) $row['slot_id'];
-    if (!isset($divisions[$divisionId]['slots'][$slotId])) {
-        $divisions[$divisionId]['slots'][$slotId] = [
+    if (!isset($rosters[$rosterId]['areas'][$areaKey]['slots'][$slotId])) {
+        $rosters[$rosterId]['areas'][$areaKey]['slots'][$slotId] = [
             'section_title' => $row['section_title'],
             'assignment_title' => $row['assignment_title'],
             'start_time' => substr($row['start_time'], 0, 5),
             'end_time' => substr($row['end_time'], 0, 5),
-            'place_name' => $row['place_name'],
             'event_name' => $row['event_name'],
             'notes' => $row['slot_notes'],
             'teachers' => []
@@ -113,7 +117,7 @@ while ($row = mysqli_fetch_assoc($result)) {
     }
 
     if ($row['teacher_id'] !== null) {
-        $divisions[$divisionId]['slots'][$slotId]['teachers'][] = [
+        $rosters[$rosterId]['areas'][$areaKey]['slots'][$slotId]['teachers'][] = [
             'name' => $row['teacher_name'],
             'photo' => $row['teacher_photo'],
             'division' => $row['teacher_division_name']
@@ -123,16 +127,20 @@ while ($row = mysqli_fetch_assoc($result)) {
 
 mysqli_stmt_close($statement);
 
-foreach ($divisions as &$division) {
-    $division['slots'] = array_values($division['slots']);
+foreach ($rosters as &$roster) {
+    foreach ($roster['areas'] as &$area) {
+        $area['slots'] = array_values($area['slots']);
+    }
+    unset($area);
+    $roster['areas'] = array_values($roster['areas']);
 }
-unset($division);
+unset($roster);
 
 echo json_encode([
     'status' => 'success',
     'weekday' => $weekday,
     'weekday_name' => $weekdayNames[$weekday],
     'current_time' => substr($currentTime, 0, 5),
-    'data' => array_values($divisions)
+    'data' => array_values($rosters)
 ], JSON_UNESCAPED_UNICODE);
 ?>

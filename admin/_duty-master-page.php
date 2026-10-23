@@ -172,6 +172,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $statement = mysqli_prepare($connect, 'INSERT INTO duty_events (name) VALUES (?)');
                             $bound = $statement && mysqli_stmt_bind_param($statement, 's', $formName);
                         }
+                    } elseif ($masterKey === 'place') {
+                        if ($id > 0) {
+                            $statement = mysqli_prepare($connect, 'UPDATE duty_places SET name = ? WHERE id = ?');
+                            $bound = $statement && mysqli_stmt_bind_param($statement, 'si', $formName, $id);
+                        } else {
+                            $statement = mysqli_prepare($connect, 'INSERT INTO duty_places (name) VALUES (?)');
+                            $bound = $statement && mysqli_stmt_bind_param($statement, 's', $formName);
+                        }
                     } else {
                         $divisionId = (int) $formDivisionId;
                         if ($id > 0) {

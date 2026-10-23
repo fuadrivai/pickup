@@ -20,12 +20,8 @@ CREATE TABLE IF NOT EXISTS duty_teachers (
 CREATE TABLE IF NOT EXISTS duty_places (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     name VARCHAR(150) NOT NULL,
-    division_id INT UNSIGNED NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_duty_places_division_name (division_id, name),
-    CONSTRAINT fk_duty_places_division
-        FOREIGN KEY (division_id) REFERENCES duty_divisions (id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
+    UNIQUE KEY uq_duty_places_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS duty_events (
@@ -38,16 +34,12 @@ CREATE TABLE IF NOT EXISTS duty_events (
 CREATE TABLE IF NOT EXISTS duty_rosters (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     title VARCHAR(150) NOT NULL,
-    academic_year VARCHAR(30) DEFAULT NULL,
-    division_id INT UNSIGNED NOT NULL,
+    academic_year VARCHAR(30) NOT NULL,
     notes TEXT DEFAULT NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    KEY idx_duty_rosters_division (division_id),
-    CONSTRAINT fk_duty_rosters_division
-        FOREIGN KEY (division_id) REFERENCES duty_divisions (id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
+    UNIQUE KEY uq_duty_rosters_academic_year (academic_year)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS duty_roster_slots (
@@ -94,5 +86,6 @@ INSERT INTO duty_divisions (name) VALUES
     ('Preschool'),
     ('Primary'),
     ('Secondary'),
-    ('Development Class')
+    ('Development Class'),
+    ('Operasional')
 ON DUPLICATE KEY UPDATE name = VALUES(name);

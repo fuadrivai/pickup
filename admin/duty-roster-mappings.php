@@ -16,8 +16,8 @@ function dutyMappingGetRoster($connect, $rosterId)
 {
     $statement = mysqli_prepare(
         $connect,
-        'SELECT r.id, r.title, r.academic_year, r.division_id, r.notes, r.is_active, d.name AS division_name
-         FROM duty_rosters r JOIN duty_divisions d ON d.id = r.division_id WHERE r.id = ? LIMIT 1'
+        'SELECT r.id, r.title, r.academic_year, r.notes, r.is_active
+         FROM duty_rosters r WHERE r.id = ? LIMIT 1'
     );
     if (!$statement || !mysqli_stmt_bind_param($statement, 'i', $rosterId) || !mysqli_stmt_execute($statement)) {
         error_log('Gagal memeriksa jadwal duty roster: ' . ($statement ? mysqli_stmt_error($statement) : mysqli_error($connect)));
@@ -129,9 +129,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errorMessage = 'Catatan maksimal 500 karakter.';
             } else {
                 if ($placeId > 0) {
-                    $check = mysqli_prepare($connect, 'SELECT 1 FROM duty_places WHERE id = ? AND division_id = ? LIMIT 1');
+                    $check = mysqli_prepare($connect, 'SELECT 1 FROM duty_places WHERE id = ? LIMIT 1');
                     if ($check) {
-                        mysqli_stmt_bind_param($check, 'ii', $placeId, $roster['division_id']);
+                        mysqli_stmt_bind_param($check, 'i', $placeId);
                         mysqli_stmt_execute($check);
                         mysqli_stmt_store_result($check);
                         $placeValid = mysqli_stmt_num_rows($check) === 1;
@@ -157,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $eventValid = true;
                 }
                 if (!$placeValid || !$eventValid) {
-                    $errorMessage = 'Lokasi dan Event Run harus berasal dari divisi jadwal ini.';
+                    $errorMessage = 'Place atau Event Run yang dipilih tidak ditemukan.';
                 } else {
                     $normalizedTeachers = [];
                     $teacherIdsAreValid = true;
@@ -310,8 +310,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $places = [];
-$placeStatement = mysqli_prepare($connect, 'SELECT id, name FROM duty_places WHERE division_id = ? ORDER BY name');
-if ($placeStatement && mysqli_stmt_bind_param($placeStatement, 'i', $roster['division_id']) && mysqli_stmt_execute($placeStatement)) {
+$placeStatement = mysqli_prepare($connect, 'SELECT id, name FROM duty_places ORDER BY name');
+if ($placeStatement && mysqli_stmt_execute($placeStatement)) {
     $placeResult = mysqli_stmt_get_result($placeStatement);
     while ($placeResult && $place = mysqli_fetch_assoc($placeResult)) {
         $places[] = $place;
@@ -359,7 +359,7 @@ $slotResult = mysqli_query(
      LEFT JOIN duty_places p ON p.id = s.place_id
      LEFT JOIN duty_events e ON e.id = s.event_id
      WHERE s.roster_id = ' . $rosterId . '
-     ORDER BY s.sort_order, s.start_time, s.id'
+     ORDER BY p.name, s.sort_order, s.start_time, s.id'
 );
 if ($slotResult) {
     while ($slot = mysqli_fetch_assoc($slotResult)) {
@@ -425,7 +425,6 @@ $formTeachers = is_array($formTeachers) ? $formTeachers : [];
                             <h1 class="h3 mb-2 text-gray-800">Rincian Duty Roster</h1>
                             <p class="mb-4">
                                 <?php echo dutyMappingEscape($roster['title']); ?>
-                                &middot; <?php echo dutyMappingEscape($roster['division_name']); ?>
                                 <?php if ($roster['academic_year']) { ?>&middot; <?php echo dutyMappingEscape($roster['academic_year']); ?><?php } ?>
                             </p>
                         </div>
@@ -436,7 +435,7 @@ $formTeachers = is_array($formTeachers) ? $formTeachers : [];
                     <?php if ($errorMessage !== '') { ?><div class="alert alert-danger"><?php echo dutyMappingEscape($errorMessage); ?></div><?php } ?>
 
                     <div class="alert alert-info">
-                        Tambahkan satu baris untuk setiap tugas/lokasi dan waktu. Event Run diambil dari master global yang sudah tersedia; pilih guru untuk masing-masing hari di dalam baris tugas.
+                        Tambahkan satu baris untuk setiap area/lokasi dan rentang waktu. Place dan Event Run bersifat global; guru dari berbagai divisi dapat ditugaskan bersama.
                     </div>
                     <div class="card shadow mb-4">
                         <div class="card-header py-3 d-flex justify-content-between align-items-center">
@@ -447,15 +446,24 @@ $formTeachers = is_array($formTeachers) ? $formTeachers : [];
                         </div>
                         <div class="card-body">
                             <div class="alert alert-light border">
-                                Setiap baris adalah satu lokasi/tugas dan rentang waktu. Pilih guru per hari; satu hari dapat memiliki beberapa guru. Guru dapat berasal dari divisi mana pun.
+                                Setiap baris adalah satu area/tugas dan rentang waktu. Pilih guru per hari; satu hari dapat memiliki beberapa guru dari berbagai divisi.
                             </div>
                             <div class="table-responsive">
                                 <table class="table table-bordered" width="100%" cellspacing="0">
                                     <thead>
-                                        <tr><th>Kelompok / Tugas</th><th>Waktu</th><th>Place</th><th>Event Run</th><th>Guru per Hari</th><th>Aksi</th></tr>
+                                        <tr><th>Kelompok / Tugas</th><th>Waktu</th><th>Event Run</th><th>Guru per Hari</th><th>Aksi</th></tr>
                                     </thead>
                                     <tbody>
-                                        <?php foreach ($slots as $slot) { ?>
+                                        <?php $currentPlaceName = null; foreach ($slots as $slot) { ?>
+                                            <?php
+                                            $placeName = $slot['place_name'] ?: 'Area belum ditentukan';
+                                            if ($placeName !== $currentPlaceName) {
+                                                $currentPlaceName = $placeName;
+                                            ?>
+                                                <tr class="table-secondary">
+                                                    <th colspan="5" class="text-primary"><i class="fas fa-map-marker-alt mr-2"></i><?php echo dutyMappingEscape($placeName); ?></th>
+                                                </tr>
+                                            <?php } ?>
                                             <tr>
                                                 <td>
                                                     <?php if ($slot['section_title']) { ?><strong><?php echo dutyMappingEscape($slot['section_title']); ?></strong><br><?php } ?>
@@ -463,7 +471,6 @@ $formTeachers = is_array($formTeachers) ? $formTeachers : [];
                                                     <?php if ($slot['notes']) { ?><div class="small text-muted"><?php echo dutyMappingEscape($slot['notes']); ?></div><?php } ?>
                                                 </td>
                                                 <td class="text-nowrap"><?php echo dutyMappingEscape(substr($slot['start_time'], 0, 5)); ?> - <?php echo dutyMappingEscape(substr($slot['end_time'], 0, 5)); ?></td>
-                                                <td><?php echo dutyMappingEscape($slot['place_name'] ?: '-'); ?></td>
                                                 <td><?php echo dutyMappingEscape($slot['event_name'] ?: '-'); ?></td>
                                                 <td class="mapping-days">
                                                     <?php foreach ($weekdays as $weekday => $dayName) { ?>
@@ -507,7 +514,7 @@ $formTeachers = is_array($formTeachers) ? $formTeachers : [];
                                                 </td>
                                             </tr>
                                         <?php } ?>
-                                        <?php if (count($slots) === 0) { ?><tr><td colspan="6" class="text-center text-muted">Belum ada mapping untuk jadwal ini.</td></tr><?php } ?>
+                                        <?php if (count($slots) === 0) { ?><tr><td colspan="5" class="text-center text-muted">Belum ada mapping untuk jadwal ini.</td></tr><?php } ?>
                                     </tbody>
                                 </table>
                             </div>

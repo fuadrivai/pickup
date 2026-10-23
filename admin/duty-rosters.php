@@ -18,7 +18,6 @@ $modalOpen = false;
 $formId = '';
 $formTitle = '';
 $formYear = '';
-$formDivisionId = '';
 $formNotes = '';
 $formActive = '1';
 
@@ -49,29 +48,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $formId = $idValue;
             $formTitle = trim(isset($_POST['title']) ? (string) $_POST['title'] : '');
             $formYear = trim(isset($_POST['academic_year']) ? (string) $_POST['academic_year'] : '');
-            $formDivisionId = isset($_POST['division_id']) ? trim((string) $_POST['division_id']) : '';
             $formNotes = trim(isset($_POST['notes']) ? (string) $_POST['notes'] : '');
             $formActive = isset($_POST['is_active']) && $_POST['is_active'] === '0' ? '0' : '1';
 
             if ($formTitle === '' || strlen($formTitle) > 150) {
                 $errorMessage = 'Nama jadwal wajib diisi (maksimal 150 karakter).';
-            } elseif ($formYear !== '' && strlen($formYear) > 30) {
-                $errorMessage = 'Tahun akademik maksimal 30 karakter.';
-            } elseif (!ctype_digit($formDivisionId) || (int) $formDivisionId < 1) {
-                $errorMessage = 'Divisi wajib dipilih.';
+            } elseif ($formYear === '' || strlen($formYear) > 30) {
+                $errorMessage = 'Tahun akademik wajib diisi (maksimal 30 karakter).';
             } elseif (strlen($formNotes) > 65535) {
                 $errorMessage = 'Catatan terlalu panjang.';
             } else {
-                $divisionId = (int) $formDivisionId;
-                $yearValue = $formYear === '' ? null : $formYear;
+                $yearValue = $formYear;
                 $notesValue = $formNotes === '' ? null : $formNotes;
                 $activeValue = (int) $formActive;
                 if ($id > 0) {
-                    $statement = mysqli_prepare($connect, 'UPDATE duty_rosters SET title = ?, academic_year = ?, division_id = ?, notes = ?, is_active = ? WHERE id = ?');
-                    $bound = $statement && mysqli_stmt_bind_param($statement, 'ssisii', $formTitle, $yearValue, $divisionId, $notesValue, $activeValue, $id);
+                    $statement = mysqli_prepare($connect, 'UPDATE duty_rosters SET title = ?, academic_year = ?, notes = ?, is_active = ? WHERE id = ?');
+                    $bound = $statement && mysqli_stmt_bind_param($statement, 'sssii', $formTitle, $yearValue, $notesValue, $activeValue, $id);
                 } else {
-                    $statement = mysqli_prepare($connect, 'INSERT INTO duty_rosters (title, academic_year, division_id, notes, is_active) VALUES (?, ?, ?, ?, ?)');
-                    $bound = $statement && mysqli_stmt_bind_param($statement, 'ssisi', $formTitle, $yearValue, $divisionId, $notesValue, $activeValue);
+                    $statement = mysqli_prepare($connect, 'INSERT INTO duty_rosters (title, academic_year, notes, is_active) VALUES (?, ?, ?, ?)');
+                    $bound = $statement && mysqli_stmt_bind_param($statement, 'sssi', $formTitle, $yearValue, $notesValue, $activeValue);
                 }
 
                 if ($statement && $bound && mysqli_stmt_execute($statement)) {
@@ -80,38 +75,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($id > 0) {
                         dutyRosterRedirect('Jadwal berhasil disimpan.');
                     }
-                    header('Location: duty-roster-mappings.php?roster_id=' . (int) $savedRosterId . '&message=' . rawurlencode('Jadwal berhasil dibuat. Lanjutkan dengan mengisi Event Run, lokasi, waktu, hari, dan guru.'));
+                    header('Location: duty-roster-mappings.php?roster_id=' . (int) $savedRosterId . '&message=' . rawurlencode('Jadwal global berhasil dibuat. Lanjutkan dengan mengisi area, Event Run, waktu, hari, dan guru lintas divisi.'));
                     exit;
                 }
-                error_log('Gagal menyimpan duty roster: ' . ($statement ? mysqli_stmt_error($statement) : mysqli_error($connect)));
+                $saveError = $statement ? mysqli_stmt_error($statement) : mysqli_error($connect);
+                error_log('Gagal menyimpan duty roster: ' . $saveError);
                 if ($statement) {
                     mysqli_stmt_close($statement);
                 }
-                $errorMessage = 'Gagal menyimpan jadwal. Periksa kembali data dan pilihan divisi.';
+                $errorMessage = strpos($saveError, 'uq_duty_rosters_academic_year') !== false
+                    ? 'Duty Roster untuk tahun akademik ini sudah ada. Buka jadwal tersebut untuk mengelola seluruh area.'
+                    : 'Gagal menyimpan jadwal. Periksa kembali nama dan tahun akademik.';
             }
         }
     }
 }
 
-$divisions = [];
-$divisionResult = mysqli_query($connect, 'SELECT id, name FROM duty_divisions ORDER BY name ASC');
-if ($divisionResult) {
-    while ($division = mysqli_fetch_assoc($divisionResult)) {
-        $divisions[] = $division;
-    }
-} else {
-    error_log('Gagal mengambil divisi duty roster: ' . mysqli_error($connect));
-    $errorMessage = 'Gagal memuat master divisi.';
-}
-
 $rosters = [];
 $rosterResult = mysqli_query(
     $connect,
-    'SELECT r.id, r.title, r.academic_year, r.division_id, r.notes, r.is_active, d.name AS division_name,
+    'SELECT r.id, r.title, r.academic_year, r.notes, r.is_active,
             (SELECT COUNT(*) FROM duty_roster_slots s WHERE s.roster_id = r.id) AS slot_count
      FROM duty_rosters r
-     JOIN duty_divisions d ON d.id = r.division_id
-     ORDER BY d.name, r.academic_year DESC, r.title'
+     ORDER BY r.academic_year DESC, r.title'
 );
 if ($rosterResult) {
     while ($roster = mysqli_fetch_assoc($rosterResult)) {
@@ -141,7 +127,7 @@ if ($rosterResult) {
                 <?php include 'header.php'; ?>
                 <div class="container-fluid">
                     <h1 class="h3 mb-2 text-gray-800">Duty Roster</h1>
-                    <p class="mb-4">Buat kerangka jadwal untuk satu divisi. Setelah disimpan, Anda langsung mengisi Event Run, lokasi, waktu, hari, dan guru yang bertugas.</p>
+                    <p class="mb-4">Satu jadwal global per tahun akademik untuk semua area dan guru lintas divisi.</p>
 
                     <?php if ($successMessage !== '') { ?><div class="alert alert-success"><?php echo dutyRosterEscape($successMessage); ?></div><?php } ?>
                     <?php if ($errorMessage !== '') { ?><div class="alert alert-danger"><?php echo dutyRosterEscape($errorMessage); ?></div><?php } ?>
@@ -157,14 +143,13 @@ if ($rosterResult) {
                             <div class="table-responsive">
                                 <table class="table table-bordered" width="100%" cellspacing="0">
                                     <thead>
-                                        <tr><th>Nama Jadwal</th><th>Tahun Akademik</th><th>Divisi</th><th>Mapping</th><th>Status</th><th>Aksi</th></tr>
+                                        <tr><th>Nama Jadwal</th><th>Tahun Akademik</th><th>Area / Tugas</th><th>Status</th><th>Aksi</th></tr>
                                     </thead>
                                     <tbody>
                                         <?php foreach ($rosters as $roster) { ?>
                                             <tr>
                                                 <td><?php echo dutyRosterEscape($roster['title']); ?></td>
                                                 <td><?php echo dutyRosterEscape($roster['academic_year'] ?: '-'); ?></td>
-                                                <td><?php echo dutyRosterEscape($roster['division_name']); ?></td>
                                                 <td><?php echo dutyRosterEscape($roster['slot_count']); ?> baris</td>
                                                 <td>
                                                     <?php if ($roster['is_active']) { ?><span class="badge badge-success">Aktif</span><?php } else { ?><span class="badge badge-secondary">Nonaktif</span><?php } ?>
@@ -177,7 +162,6 @@ if ($rosterResult) {
                                                         data-id="<?php echo dutyRosterEscape($roster['id']); ?>"
                                                         data-title="<?php echo dutyRosterEscape($roster['title']); ?>"
                                                         data-year="<?php echo dutyRosterEscape($roster['academic_year']); ?>"
-                                                        data-division-id="<?php echo dutyRosterEscape($roster['division_id']); ?>"
                                                         data-notes="<?php echo dutyRosterEscape($roster['notes']); ?>"
                                                         data-active="<?php echo dutyRosterEscape($roster['is_active']); ?>"
                                                         aria-label="Edit jadwal <?php echo dutyRosterEscape($roster['title']); ?>">
@@ -193,7 +177,7 @@ if ($rosterResult) {
                                                 </td>
                                             </tr>
                                         <?php } ?>
-                                        <?php if (count($rosters) === 0) { ?><tr><td colspan="6" class="text-center text-muted">Belum ada jadwal. Buat jadwal per divisi untuk mulai melakukan mapping.</td></tr><?php } ?>
+                                        <?php if (count($rosters) === 0) { ?><tr><td colspan="5" class="text-center text-muted">Belum ada jadwal. Buat satu roster global untuk tahun akademik.</td></tr><?php } ?>
                                     </tbody>
                                 </table>
                             </div>
@@ -213,29 +197,16 @@ if ($rosterResult) {
                     <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
                 </div>
                 <div class="modal-body">
-                    <div class="alert alert-info">
-                        Isi identitas jadwal di sini. Setelah disimpan, Anda langsung ke form rincian untuk memilih Event Run yang sudah tersedia, Place, waktu, hari, dan guru.
-                    </div>
+                    <div class="alert alert-info">Jadwal ini berlaku untuk semua area dan semua divisi. Setiap tahun akademik hanya memiliki satu roster global.</div>
                     <input type="hidden" name="action" value="save">
                     <input type="hidden" name="id" id="rosterId" value="<?php echo dutyRosterEscape($formId); ?>">
                     <div class="form-group">
                         <label for="rosterTitle">Nama jadwal</label>
                         <input type="text" class="form-control" name="title" id="rosterTitle" maxlength="150" value="<?php echo dutyRosterEscape($formTitle); ?>" placeholder="Contoh: Teachers' Duty Rotation" required>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group col-md-6">
-                            <label for="rosterDivision">Divisi</label>
-                            <select class="form-control" name="division_id" id="rosterDivision" required>
-                                <option value="">Pilih divisi</option>
-                                <?php foreach ($divisions as $division) { ?>
-                                    <option value="<?php echo dutyRosterEscape($division['id']); ?>" <?php if ((string) $formDivisionId === (string) $division['id']) echo 'selected'; ?>><?php echo dutyRosterEscape($division['name']); ?></option>
-                                <?php } ?>
-                            </select>
-                        </div>
-                        <div class="form-group col-md-6">
-                            <label for="rosterYear">Tahun akademik (opsional)</label>
-                            <input type="text" class="form-control" name="academic_year" id="rosterYear" maxlength="30" value="<?php echo dutyRosterEscape($formYear); ?>" placeholder="Contoh: 2026/2027">
-                        </div>
+                    <div class="form-group">
+                        <label for="rosterYear">Tahun akademik</label>
+                        <input type="text" class="form-control" name="academic_year" id="rosterYear" maxlength="30" value="<?php echo dutyRosterEscape($formYear); ?>" placeholder="Contoh: 2026/2027" required>
                     </div>
                     <div class="form-group">
                         <label for="rosterNotes">Catatan (opsional)</label>
@@ -269,7 +240,6 @@ if ($rosterResult) {
             modal.find('.modal-title').text(isEdit ? 'Edit Jadwal Duty' : 'Buat Jadwal Duty');
             modal.find('#rosterId').val(isEdit ? button.attr('data-id') : '');
             modal.find('#rosterTitle').val(isEdit ? button.attr('data-title') : '');
-            modal.find('#rosterDivision').val(isEdit ? button.attr('data-division-id') : '');
             modal.find('#rosterYear').val(isEdit ? button.attr('data-year') : '');
             modal.find('#rosterNotes').val(isEdit ? button.attr('data-notes') : '');
             modal.find('#rosterActive').val(isEdit ? button.attr('data-active') : '1');

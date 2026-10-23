@@ -211,6 +211,16 @@ header("Refresh: $refreshInterval");
             font-weight: 600;
             margin-left: 8px;
         }
+        .duty-area { border-top: 1px solid #e4e8ef; }
+        .duty-area:first-of-type { border-top: 0; }
+        .duty-area-title {
+            background: #f4f8fb;
+            border-bottom: 1px solid #e4e8ef;
+            color: #27364b;
+            font-size: clamp(16px, 1.25vw, 21px);
+            font-weight: 800;
+            padding: 9px 14px;
+        }
         .duty-slots-grid {
             display: grid;
             gap: 12px;
@@ -239,31 +249,38 @@ header("Refresh: $refreshInterval");
         .duty-place { color: #27364b; font-size: clamp(15px, 1.2vw, 20px); font-weight: 800; }
         .duty-task { color: #68778d; display: block; font-size: .8em; margin-top: 2px; }
         .duty-teachers {
-            display: grid;
-            gap: 10px;
-            grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
-            padding: 10px;
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+            padding: 8px;
         }
         .duty-teacher {
-            background: #fff;
+            align-items: center;
+            background: #f7f9fc;
             border: 1px solid #e2e9ef;
-            border-radius: 10px;
+            border-radius: 8px;
+            display: flex;
+            flex: 0 1 auto;
+            gap: 9px;
             min-width: 0;
-            overflow: hidden;
+            padding: 5px 11px 5px 5px;
         }
         .duty-teacher-photo, .duty-teacher-initial {
             align-items: center;
             background: linear-gradient(135deg, #d8e8ed, #eff5f7);
             display: flex;
-            height: clamp(120px, 13vw, 190px);
+            flex: 0 0 46px;
+            height: 46px;
             justify-content: center;
             object-fit: cover;
-            width: 100%;
+            width: 46px;
         }
-        .duty-teacher-initial { color: #31515a; font-size: clamp(36px, 5vw, 64px); font-weight: 800; }
-        .duty-teacher-info { display: flex; flex-direction: column; gap: 3px; line-height: 1.2; padding: 8px 9px 10px; }
-        .duty-teacher-name { color: #27364b; font-size: clamp(13px, 1vw, 16px); font-weight: 800; overflow-wrap: anywhere; }
-        .duty-teacher-division { color: #68778d; font-size: clamp(11px, .8vw, 13px); }
+        .duty-teacher-photo { border-radius: 50%; }
+        .duty-teacher-initial { border-radius: 50%; color: #31515a; font-size: 18px; font-weight: 800; }
+        .duty-teacher-info { display: flex; flex-direction: column; gap: 1px; line-height: 1.15; min-width: 0; }
+        .duty-teacher-name { color: #27364b; font-size: clamp(13px, .95vw, 16px); font-weight: 800; overflow-wrap: anywhere; }
+        .duty-teacher-division { color: #68778d; font-size: clamp(11px, .76vw, 13px); }
         .duty-empty { color: #77808c; font-size: 18px; padding: 24px; text-align: center; }
 
         /* Right Column - Pickup List */
@@ -525,79 +542,83 @@ header("Refresh: $refreshInterval");
                         return;
                     }
 
-                    response.data.forEach(function(division) {
+                    response.data.forEach(function(roster) {
                         var section = $('<section>', { 'class': 'duty-division' });
-                        var divisionTitle = $('<div>', { 'class': 'duty-division-title' }).text(division.division_name);
-                        if (division.academic_year) {
-                            divisionTitle.append($('<small>').text(division.academic_year));
+                        var rosterTitle = $('<div>', { 'class': 'duty-division-title' }).text(roster.roster_title || 'Duty Roster');
+                        if (roster.academic_year) {
+                            rosterTitle.append($('<small>').text(roster.academic_year));
                         }
-                        section.append(divisionTitle);
+                        section.append(rosterTitle);
 
-                        if (!Array.isArray(division.slots) || division.slots.length === 0) {
+                        if (!Array.isArray(roster.areas) || roster.areas.length === 0) {
                             section.append($('<div>', {
                                 'class': 'duty-empty',
-                                text: 'Belum ada tugas untuk hari ini.'
+                                text: 'Tidak ada tugas yang sedang berlangsung.'
                             }));
                             container.append(section);
                             return;
                         }
 
-                        var slotsGrid = $('<div>', { 'class': 'duty-slots-grid' });
+                        roster.areas.forEach(function(area) {
+                            var areaSection = $('<section>', { 'class': 'duty-area' });
+                            areaSection.append($('<div>', { 'class': 'duty-area-title' }).text(area.place_name || 'Area belum ditentukan'));
+                            var slotsGrid = $('<div>', { 'class': 'duty-slots-grid' });
 
-                        division.slots.forEach(function(slot) {
-                            var placeLabel = slot.place_name || slot.assignment_title || slot.event_name || 'Tugas piket';
-                            var slotCard = $('<article>', { 'class': 'duty-slot' });
-                            var slotHeading = $('<div>', { 'class': 'duty-slot-heading' })
-                                .append($('<span>', { 'class': 'duty-time' }).text(slot.start_time + ' - ' + slot.end_time))
-                                .append($('<span>', { 'class': 'duty-place' }).text(placeLabel));
-                            var taskLabel = [slot.section_title, slot.assignment_title, slot.event_name]
-                                .filter(function(value) { return value && value !== placeLabel; })
-                                .join(' · ');
-                            if (taskLabel) {
-                                slotHeading.append($('<span>', { 'class': 'duty-task' }).text(taskLabel));
-                            }
+                            area.slots.forEach(function(slot) {
+                                var slotCard = $('<article>', { 'class': 'duty-slot' });
+                                var slotHeading = $('<div>', { 'class': 'duty-slot-heading' })
+                                    .append($('<span>', { 'class': 'duty-time' }).text(slot.start_time + ' - ' + slot.end_time));
+                                var taskLabel = [slot.section_title, slot.assignment_title, slot.event_name]
+                                    .filter(function(value) { return !!value; })
+                                    .filter(function(value, index, values) { return values.indexOf(value) === index; })
+                                    .join(' · ');
+                                if (taskLabel) {
+                                    slotHeading.append($('<span>', { 'class': 'duty-task' }).text(taskLabel));
+                                }
 
-                            var teacherList = $('<div>', { 'class': 'duty-teachers' });
-                            if (Array.isArray(slot.teachers) && slot.teachers.length > 0) {
-                                slot.teachers.forEach(function(teacher) {
-                                    var teacherCard = $('<div>', { 'class': 'duty-teacher' });
-                                    var photoPath = typeof teacher.photo === 'string' ? teacher.photo : '';
-                                    var initial = (teacher.name || '?').trim().charAt(0).toUpperCase() || '?';
-                                    if (
-                                        /^https?:\/\//i.test(photoPath) ||
-                                        (photoPath.indexOf('admin/uploads/teachers/') === 0 && photoPath.indexOf('..') === -1)
-                                    ) {
-                                        var teacherPhoto = $('<img>', {
-                                            'class': 'duty-teacher-photo',
-                                            src: photoPath,
-                                            alt: 'Foto ' + (teacher.name || '')
-                                        }).on('error', function() {
-                                            $(this).replaceWith($('<span>', {
-                                                'class': 'duty-teacher-initial',
-                                                text: initial
-                                            }));
-                                        });
-                                        teacherCard.append(teacherPhoto);
-                                    } else {
-                                        teacherCard.append($('<span>', { 'class': 'duty-teacher-initial', text: initial }));
-                                    }
-                                    var teacherInfo = $('<span>', { 'class': 'duty-teacher-info' })
-                                        .append($('<span>', { 'class': 'duty-teacher-name' }).text(teacher.name || 'Nama tidak tersedia'))
-                                        .append($('<span>', { 'class': 'duty-teacher-division' }).text(teacher.division || 'Divisi tidak tersedia'));
-                                    teacherCard.append(teacherInfo);
-                                    teacherList.append(teacherCard);
-                                });
-                            } else {
-                                teacherList.append($('<span>', { 'class': 'text-muted' }).text('Belum ditentukan'));
-                            }
-                            if (slot.notes) {
-                                slotCard.attr('title', slot.notes);
-                            }
-                            slotCard.append(slotHeading, teacherList);
-                            slotsGrid.append(slotCard);
+                                var teacherList = $('<div>', { 'class': 'duty-teachers' });
+                                if (Array.isArray(slot.teachers) && slot.teachers.length > 0) {
+                                    slot.teachers.forEach(function(teacher) {
+                                        var teacherCard = $('<div>', { 'class': 'duty-teacher' });
+                                        var photoPath = typeof teacher.photo === 'string' ? teacher.photo : '';
+                                        var initial = (teacher.name || '?').trim().charAt(0).toUpperCase() || '?';
+                                        if (
+                                            /^https?:\/\//i.test(photoPath) ||
+                                            (photoPath.indexOf('admin/uploads/teachers/') === 0 && photoPath.indexOf('..') === -1)
+                                        ) {
+                                            var teacherPhoto = $('<img>', {
+                                                'class': 'duty-teacher-photo',
+                                                src: photoPath,
+                                                alt: 'Foto ' + (teacher.name || '')
+                                            }).on('error', function() {
+                                                $(this).replaceWith($('<span>', {
+                                                    'class': 'duty-teacher-initial',
+                                                    text: initial
+                                                }));
+                                            });
+                                            teacherCard.append(teacherPhoto);
+                                        } else {
+                                            teacherCard.append($('<span>', { 'class': 'duty-teacher-initial', text: initial }));
+                                        }
+                                        var teacherInfo = $('<span>', { 'class': 'duty-teacher-info' })
+                                            .append($('<span>', { 'class': 'duty-teacher-name' }).text(teacher.name || 'Nama tidak tersedia'))
+                                            .append($('<span>', { 'class': 'duty-teacher-division' }).text(teacher.division || 'Divisi tidak tersedia'));
+                                        teacherCard.append(teacherInfo);
+                                        teacherList.append(teacherCard);
+                                    });
+                                } else {
+                                    teacherList.append($('<span>', { 'class': 'text-muted' }).text('Belum ditentukan'));
+                                }
+                                if (slot.notes) {
+                                    slotCard.attr('title', slot.notes);
+                                }
+                                slotCard.append(slotHeading, teacherList);
+                                slotsGrid.append(slotCard);
+                            });
+
+                            areaSection.append(slotsGrid);
+                            section.append(areaSection);
                         });
-
-                        section.append(slotsGrid);
                         container.append(section);
                     });
                     container.scrollTop(scrollPosition);
